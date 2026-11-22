@@ -86,8 +86,12 @@ function verifyS3(array $config, Credentials $credentials): S3Request
         $date = $headers['x-amz-date'] ?? '';
     }
     $scope = explode('/', $credential);
-    if (count($scope) !== 5 || $scope[1] !== substr($date, 0, 8) || $scope[2] !== $config['region'] || $scope[3] !== 's3' || $scope[4] !== 'aws4_request') {
-        throw new S3Error('AuthorizationHeaderMalformed', 'Invalid credential scope for this region.', 400);
+    if (count($scope) !== 5 || $scope[1] !== substr($date, 0, 8) || $scope[3] !== 's3' || $scope[4] !== 'aws4_request') {
+        throw new S3Error('AuthorizationHeaderMalformed', 'Invalid credential scope.', 400);
+    }
+    if ($scope[2] !== $config['region']) {
+        header('x-amz-bucket-region: ' . $config['region']);
+        throw new S3Error('AuthorizationHeaderMalformed', 'The expected region is ' . $config['region'] . '.', 400);
     }
     $isAdmin = hash_equals($config['access_key'], $scope[0]);
     $key = $isAdmin ? 'AWS4' . $config['secret_key'] : $credentials->signingKey($scope[0]);
