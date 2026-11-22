@@ -15,7 +15,7 @@
 }
 * { box-sizing: border-box; }
 body { margin: 0; font-size: 14px; line-height: 1.5; }
-button, input { font: inherit; }
+button, input, select { font: inherit; }
 a { color: inherit; text-decoration: none; }
 button { cursor: pointer; }
 :focus-visible { outline: 3px solid #c58520; outline-offset: 3px; }
@@ -119,6 +119,18 @@ input[type='text'], input[type='password'], input[type='file'] { width: 100%; pa
 input::placeholder { color: #78857b; }
 input[type='file'] { margin-bottom: 21px; padding: 12px; border: 1px dashed #abbfa8; background: #f5f8f1; }
 input::file-selector-button { margin-right: 10px; padding: 5px 9px; border: 1px solid #c5d2bf; border-radius: 5px; color: #39573b; background: white; cursor: pointer; }
+.credential-table td { overflow-wrap: anywhere; }
+.credential-label { font-weight: 620; }
+.credential-id { margin-bottom: 18px; color: var(--muted); overflow-wrap: anywhere; }
+.credential-keys { margin: 20px 0 0; }
+.credential-keys dt, .bucket-access legend { font-size: 13px; font-weight: 620; }
+.credential-keys dd { margin: 6px 0 16px; padding: 10px 12px; overflow-wrap: anywhere; background: #f5f7f2; border: 1px solid var(--line); border-radius: 7px; }
+.bucket-access { min-width: 0; margin: 22px 0 0; padding: 0; border: 0; }
+.bucket-access legend { margin-bottom: 7px; padding: 0; }
+.access-help { margin-bottom: 12px; color: var(--muted); font-size: 13px; }
+.access-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.access-row label { margin: 0; overflow-wrap: anywhere; font-weight: 500; }
+.access-row select { min-width: 90px; min-height: 40px; padding: 6px 8px; border: 1px solid #bac8ba; border-radius: 7px; color: var(--ink); background: #fdfefc; }
 .hint { font-size: 13px; margin-top: 8px; }
 .optional { font-size: 11px; font-weight: 450; color: var(--muted); margin-left: 4px; }
 .delete-copy { margin-top: 15px; font-size: 16px; overflow-wrap: anywhere; }
@@ -153,7 +165,7 @@ input::file-selector-button { margin-right: 10px; padding: 5px 9px; border: 1px 
     .brand { font-size: 23px; }
     .brand-mark { width: 31px; height: 32px; border-radius: 8px; }
     .brand-mark .icon { width: 22px; height: 22px; }
-    .sidebar nav { grid-column: 1 / -1; grid-row: 2; display: flex; gap: 5px; margin: 0 15px 8px; }
+    .sidebar nav { grid-column: 1 / -1; grid-row: 2; display: flex; flex-wrap: wrap; gap: 5px; margin: 0 15px 8px; }
     .nav-item { min-height: 35px; font-size: 13px; gap: 7px; margin: 0; }
     .nav-item .icon { width: 16px; height: 16px; }
     .nav-label, .account-label, .topbar { display: none; }
@@ -184,6 +196,8 @@ input::file-selector-button { margin-right: 10px; padding: 5px 9px; border: 1px 
     .table-scroll td:first-child { flex-basis: 100%; font-size: 14px; }
     .table-scroll tr:has(td.actions) td:first-child { padding-right: 80px; }
     .table-scroll td.actions { position: absolute; right: 8px; top: 8px; display: flex; gap: 2px; }
+    .table-scroll .credential-table tr:has(td.actions) td:first-child { padding-right: 0; }
+    .table-scroll .credential-table td.actions { position: static; flex-basis: 100%; gap: 8px; margin-top: 5px; }
     .table-scroll .icon-button { width: 38px; height: 38px; }
     .table-scroll time small { display: inline; margin-left: 4px; }
     .table-scroll .object-name { min-width: 0; max-width: none; }

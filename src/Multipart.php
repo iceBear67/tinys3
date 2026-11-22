@@ -15,6 +15,7 @@ final class MultipartApi
     private string $key;
     private string $id;
 
+    private BucketAccess $access;
     private ?string $payloadHash;
 
     public function __construct(private Store $store, private PDO $db, private string $root, S3Request $request)
@@ -23,6 +24,7 @@ final class MultipartApi
         $this->query = $request->query;
         $this->bucket = $request->bucket;
         $this->key = $request->key;
+        $this->access = $request->access;
         $this->payloadHash = $request->payloadHash;
         $this->id = $this->query['uploadId'] ?? '';
     }
@@ -42,6 +44,7 @@ final class MultipartApi
         if ($operation === null) {
             throw new S3Error('InvalidRequest', 'Invalid multipart operation.', 400);
         }
+        $this->access->authorize($operation, $this->bucket);
         $this->validateOptions($operation);
         $body = $operation === 'UploadPart' ? '' : $this->smallBody($operation === 'CompleteMultipartUpload' ? 3 * 1024 * 1024 : 0);
         $this->store->listObjects($this->bucket, '', '', 0, null);

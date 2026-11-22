@@ -10,6 +10,7 @@ final class S3Error extends RuntimeException
 }
 
 require __DIR__ . '/src/Download.php';
+require __DIR__ . '/src/Credentials.php';
 require __DIR__ . '/src/Auth.php';
 require __DIR__ . '/src/Store.php';
 
@@ -45,17 +46,18 @@ try {
     if (!$storage || !is_dir($storage) || !$webRoot || str_starts_with($storage . '/', $webRoot . '/') || str_starts_with(__DIR__ . '/', $webRoot . '/')) {
         throw new RuntimeException('Configuration and object storage require existing directories outside the document root.');
     }
-    $request = $dashboard ? null : verifyS3($config);
     $db = new PDO($config['dsn'], $config['db_user'], $config['db_password'], [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_EMULATE_PREPARES => false,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     ]);
     $db->exec("SET time_zone = '+00:00'");
+    $credentials = new Credentials($db, $config['access_key']);
+    $request = $dashboard ? null : verifyS3($config, $credentials);
     $store = new Store($db, $storage);
     if ($request === null) {
         require __DIR__ . '/src/Dashboard.php';
-        serveDashboard($store, $config);
+        serveDashboard($store, $config, $credentials);
     } elseif (isset($request->query['uploads']) || isset($request->query['uploadId'])) {
         require __DIR__ . '/src/Multipart.php';
         (new MultipartApi($store, $db, $storage, $request))->serve();

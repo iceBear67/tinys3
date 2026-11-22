@@ -45,3 +45,21 @@ CREATE TABLE IF NOT EXISTS multipart_parts (
     PRIMARY KEY (upload_id, part_number),
     CONSTRAINT multipart_parts_fk FOREIGN KEY (upload_id) REFERENCES multipart_uploads (upload_id) ON DELETE CASCADE
 ) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+
+CREATE TABLE IF NOT EXISTS credentials (
+    access_key VARBINARY(24) NOT NULL,
+    signing_key BINARY(32) NOT NULL,
+    label VARCHAR(255) NOT NULL,
+    created_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (access_key)
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARACTER SET utf8mb4;
+
+CREATE TABLE IF NOT EXISTS credential_grants (
+    access_key VARBINARY(24) NOT NULL,
+    bucket VARBINARY(63) NOT NULL,
+    permission ENUM('read', 'write') NOT NULL,
+    PRIMARY KEY (access_key, bucket),
+    KEY credential_grants_bucket (bucket),
+    CONSTRAINT credential_grants_key_fk FOREIGN KEY (access_key) REFERENCES credentials (access_key) ON DELETE CASCADE,
+    CONSTRAINT credential_grants_bucket_fk FOREIGN KEY (bucket) REFERENCES buckets (name) ON DELETE CASCADE
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;

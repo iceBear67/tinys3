@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-function serveDashboard(Store $store, array $config): void
+function serveDashboard(Store $store, array $config, Credentials $credentials): void
 {
-    (new DashboardPage($store, $config))->serve();
+    (new DashboardPage($store, $config, $credentials))->serve();
 }
 
 final class DashboardPage
@@ -17,7 +17,7 @@ final class DashboardPage
     private ?array $notice = null;
     private bool $readError = false;
 
-    public function __construct(private Store $store, private array $config) {}
+    public function __construct(private Store $store, private array $config, private Credentials $credentials) {}
 
     public function serve(): void
     {
@@ -73,12 +73,29 @@ final class DashboardPage
                     $cursor = self::field($_GET, 'after');
                     $data = $this->store->listObjects($this->bucket, $this->prefix, '/', self::PAGE_SIZE, $cursor === '' ? null : $cursor);
                     break;
+                case 'credentials':
+                    $data = $this->credentials->all();
+                    break;
+                case 'credential-create':
+                    $_SESSION['credential_create_token'] ??= bin2hex(random_bytes(32));
+                    $data['buckets'] = $this->store->buckets();
+                    break;
+                case 'credential-edit':
+                case 'credential-revoke':
+                    $data = $this->credentials->get(self::field($_GET, 'id'));
+                    if ($this->view === 'credential-edit') {
+                        $data['buckets'] = $this->store->buckets();
+                    }
+                    break;
                 case 'login': case 'create': case 'upload': case 'delete-bucket': case 'delete-object':
                     break;
                 default:
                     $this->redirect([]);
                     return;
             }
+        } catch (DomainException $error) {
+            $this->flash('error', $error->getMessage(), ['view' => 'credentials']);
+            return;
         } catch (S3Error $error) {
             if ($this->view === 'download') {
                 $this->flash('error', 'This object could not be downloaded. It may have been moved or deleted.', $this->folder());
@@ -106,8 +123,11 @@ final class DashboardPage
     private function submit(bool $authenticated, string $identity): void
     {
         $target = $authenticated && $this->bucket !== '' ? $this->folder() : [];
+        if (str_starts_with($this->view, 'credential')) {
+            $target = ['view' => 'credentials'];
+        }
         if (empty($_POST) && !empty($_SERVER['CONTENT_LENGTH'])) {
-            $this->flash('error', 'The form could not be read. For uploads, check the PHP request size limit.', $target);
+            $this->flash('error', 'The form could not be read. Check the PHP request size limit and try again.', $target);
             return;
         }
         if (!hash_equals($_SESSION['csrf'], self::field($_POST, 'csrf'))) {
@@ -133,6 +153,30 @@ final class DashboardPage
         $failure = 'The requested action could not be completed.';
         try {
             switch ($action) {
+                case 'credential-create':
+                    $target = ['view' => 'credentials'];
+                    if (!isset($_SESSION['credential_create_token']) || !hash_equals($_SESSION['credential_create_token'], self::field($_POST, 'create_token'))) {
+                        throw new DomainException('This creation form has expired. Open a new form to create another credential.');
+                    }
+                    $target = ['view' => 'credential-create'];
+                    $pair = $this->credentials->create(self::field($_POST, 'label'), $this->submittedGrants());
+                    unset($_SESSION['credential_create_token']);
+                    session_write_close();
+                    header('Content-Type: text/html; charset=utf-8');
+                    $this->view = 'credential-created';
+                    $this->render($pair);
+                    return;
+                case 'credential-edit':
+                    $id = self::field($_GET, 'id');
+                    $target = ['view' => 'credential-edit', 'id' => $id];
+                    $this->credentials->update($id, self::field($_POST, 'label'), $this->submittedGrants());
+                    $this->flash('success', 'Credential updated.', ['view' => 'credentials']);
+                    return;
+                case 'credential-revoke':
+                    $target = ['view' => 'credentials'];
+                    $this->credentials->revoke(self::field($_GET, 'id'));
+                    $this->flash('success', 'Credential revoked.', $target);
+                    return;
                 case 'create':
                     $target = ['view' => 'create'];
                     $name = trim(self::field($_POST, 'name'));
@@ -194,6 +238,31 @@ final class DashboardPage
         } catch (S3Error $error) {
             $this->flash('error', $failure, $target);
         }
+    }
+
+    private function submittedGrants(): array
+    {
+        // PHP can truncate form fields at max_input_vars. This marker follows every bucket control.
+        if (self::field($_POST, 'grants_complete') !== '1') {
+            throw new DomainException('The bucket access form was incomplete. Check the PHP form limits and try again.');
+        }
+        $access = $_POST['access'] ?? [];
+        $buckets = $this->store->buckets();
+        if (!is_array($access) || count($access) !== count($buckets)) {
+            throw new DomainException('The bucket list has changed. Review bucket access and try again.');
+        }
+        $grants = [];
+        foreach ($buckets as $bucket) {
+            $name = $bucket['name'];
+            $level = $access[$name] ?? null;
+            if (!in_array($level, ['none', 'read', 'write'], true)) {
+                throw new DomainException('Select an access level for every current bucket and try again.');
+            }
+            if ($level !== 'none') {
+                $grants[$name] = $level;
+            }
+        }
+        return $grants;
     }
 
     private function download(): void
@@ -298,7 +367,13 @@ final class DashboardPage
     private function render(array $data): void
     {
         $titles = ['login' => 'Sign in', 'overview' => 'Overview', 'buckets' => 'Buckets', 'files' => $this->bucket, 'create' => 'Create bucket', 'upload' => 'Upload object', 'delete-bucket' => 'Delete bucket', 'delete-object' => 'Delete object'];
-        $title = $titles[$this->view];
+        $credentialTitles = [
+            'credentials' => 'Credentials', 'credential-create' => 'Create credential',
+            'credential-edit' => 'Edit credential', 'credential-revoke' => 'Revoke credential',
+            'credential-created' => 'Credential created',
+        ];
+        $credentialPage = isset($credentialTitles[$this->view]);
+        $title = $credentialPage ? $credentialTitles[$this->view] : $titles[$this->view];
         ?>
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"><title><?= self::e($title) ?> · TinyS3</title><link rel="stylesheet" href="/assets/dashboard.css"></head>
@@ -323,14 +398,16 @@ final class DashboardPage
 <div class="console"><aside class="sidebar"><a class="brand-link" href="/admin" aria-label="TinyS3 overview"><?= self::brand() ?></a>
     <nav aria-label="Main navigation"><span class="nav-label">Workspace</span>
         <a class="nav-item<?= $this->view === 'overview' ? ' active' : '' ?>" <?= $this->view === 'overview' ? 'aria-current="page"' : '' ?> href="/admin"><?= self::icon('overview') ?>Overview</a>
-        <a class="nav-item<?= $this->view !== 'overview' ? ' active' : '' ?>" <?= $this->view === 'buckets' ? 'aria-current="page"' : '' ?> href="<?= self::href(['view' => 'buckets']) ?>"><?= self::icon('bucket') ?>Buckets</a>
+        <a class="nav-item<?= !$credentialPage && $this->view !== 'overview' ? ' active' : '' ?>" <?= $this->view === 'buckets' ? 'aria-current="page"' : '' ?> href="<?= self::href(['view' => 'buckets']) ?>"><?= self::icon('bucket') ?>Buckets</a>
+        <a class="nav-item<?= $credentialPage ? ' active' : '' ?>" <?= $this->view === 'credentials' ? 'aria-current="page"' : '' ?> href="<?= self::href(['view' => 'credentials']) ?>"><?= self::icon('lock') ?>Credentials</a>
     </nav>
     <div class="account"><span class="avatar"><?= self::icon('user') ?></span><span class="account-label">Administrator<small>Local account</small></span><form method="post" action="/admin"><?= $this->fields('logout') ?><button class="icon-button" type="submit" title="Sign out" aria-label="Sign out"><?= self::icon('logout') ?></button></form></div>
 </aside>
 <div class="workarea"><header class="topbar"><span class="context"><?= self::icon('server') ?> Storage console</span><span class="instance"><i></i> Self-hosted</span></header>
 <main id="main" class="content"><?php $this->message(); ?>
-<?php if ($this->readError): ?><h1><?= self::e($title) ?></h1><a class="button" href="<?= self::href(['view' => 'buckets']) ?>">Browse buckets</a>
-<?php elseif ($this->view === 'overview'): $this->overview($data);
+<?php if ($this->readError): ?><h1><?= self::e($title) ?></h1><a class="button" href="<?= self::href(['view' => $credentialPage ? 'credentials' : 'buckets']) ?>"><?= $credentialPage ? 'Back to credentials' : 'Browse buckets' ?></a>
+<?php elseif ($credentialPage): require __DIR__ . '/CredentialView.php';
+elseif ($this->view === 'overview'): $this->overview($data);
 elseif ($this->view === 'buckets'): $this->buckets($data);
 elseif ($this->view === 'files'): $this->files($data);
 else: $this->formPage($title); endif; ?>

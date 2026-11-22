@@ -9,10 +9,38 @@ final readonly class S3Request
         public string $bucket,
         public string $key,
         public ?string $payloadHash,
+        public BucketAccess $access,
     ) {}
 }
 
-function verifyS3(array $config): S3Request
+final readonly class BucketAccess
+{
+    public function __construct(private Credentials $credentials, private ?string $accessKey) {}
+
+    public function buckets(Store $store): array
+    {
+        return $this->accessKey === null ? $store->buckets() : $this->credentials->buckets($this->accessKey);
+    }
+
+    public function authorize(string $operation, string $bucket): void
+    {
+        if ($this->accessKey === null || $operation === 'ListBuckets') {
+            return;
+        }
+        $write = match ($operation) {
+            'ListObjects', 'ListObjectsV2', 'HeadBucket', 'GetBucketLocation', 'GetObject', 'HeadObject',
+            'ListMultipartUploads', 'ListParts' => false,
+            'PutObject', 'DeleteObject', 'DeleteObjects', 'CopyObject', 'CreateMultipartUpload',
+            'UploadPart', 'CompleteMultipartUpload', 'AbortMultipartUpload' => true,
+            default => throw new S3Error('AccessDenied', 'This operation requires administrator access.', 403),
+        };
+        if (!$this->credentials->allowed($this->accessKey, $bucket, $write)) {
+            throw new S3Error('AccessDenied', 'This credential does not have the required bucket permission.', 403);
+        }
+    }
+}
+
+function verifyS3(array $config, Credentials $credentials): S3Request
 {
     $headers = [];
     foreach (getallheaders() as $name => $value) {
@@ -61,7 +89,9 @@ function verifyS3(array $config): S3Request
     if (count($scope) !== 5 || $scope[1] !== substr($date, 0, 8) || $scope[2] !== $config['region'] || $scope[3] !== 's3' || $scope[4] !== 'aws4_request') {
         throw new S3Error('AuthorizationHeaderMalformed', 'Invalid credential scope for this region.', 400);
     }
-    if (!hash_equals($config['access_key'], $scope[0])) {
+    $isAdmin = hash_equals($config['access_key'], $scope[0]);
+    $key = $isAdmin ? 'AWS4' . $config['secret_key'] : $credentials->signingKey($scope[0]);
+    if ($key === null) {
         throw new S3Error('InvalidAccessKeyId', 'Unknown access key.', 403);
     }
     $instant = DateTimeImmutable::createFromFormat('!Ymd\THis\Z', $date, new DateTimeZone('UTC'));
@@ -98,7 +128,6 @@ function verifyS3(array $config): S3Request
     $request = implode("\n", [$_SERVER['REQUEST_METHOD'], $path, implode('&', $pairs), $headerLines, $signed, $payload]);
     $scopeText = implode('/', array_slice($scope, 1));
     $toSign = "AWS4-HMAC-SHA256\n$date\n$scopeText\n" . hash('sha256', $request);
-    $key = 'AWS4' . $config['secret_key'];
     foreach (array_slice($scope, 1) as $component) {
         $key = hash_hmac('sha256', $component, $key, true);
     }
@@ -112,5 +141,6 @@ function verifyS3(array $config): S3Request
     if (strlen($objectKey) > 1024 || !preg_match('//u', $objectKey) || str_contains($objectKey, "\0")) {
         throw new S3Error('InvalidArgument', 'Invalid object key.', 400);
     }
-    return new S3Request($headers, $query, $bucket, $objectKey, $payload === 'UNSIGNED-PAYLOAD' ? null : $payload);
+    $access = new BucketAccess($credentials, $isAdmin ? null : $scope[0]);
+    return new S3Request($headers, $query, $bucket, $objectKey, $payload === 'UNSIGNED-PAYLOAD' ? null : $payload, $access);
 }

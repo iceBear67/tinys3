@@ -13,6 +13,7 @@ final class S3Api
     private string $bucket;
     private string $key;
 
+    private BucketAccess $access;
     private ?string $payloadHash;
 
     public function __construct(private Store $store, S3Request $request)
@@ -21,6 +22,7 @@ final class S3Api
         $this->query = $request->query;
         $this->bucket = $request->bucket;
         $this->key = $request->key;
+        $this->access = $request->access;
         $this->payloadHash = $request->payloadHash;
     }
 
@@ -51,6 +53,7 @@ final class S3Api
         if ($operation === null) {
             self::unsupported($method);
         }
+        $this->access->authorize($operation, $this->bucket);
         $this->validateOptions($operation);
         if ($operation === 'PutObject') {
             $this->putObject();
@@ -68,7 +71,7 @@ final class S3Api
         switch ($operation) {
             case 'ListBuckets':
                 $items = '';
-                foreach ($this->store->buckets() as $row) {
+                foreach ($this->access->buckets($this->store) as $row) {
                     $items .= '<Bucket>' . self::element('Name', $row['name'])
                         . self::element('CreationDate', self::isoTime($row['created_at'])) . '</Bucket>';
                 }
@@ -509,6 +512,7 @@ final class S3Api
         if (!in_array($directive, ['COPY', 'REPLACE'], true) || ($directive === 'COPY' && $bucket === $this->bucket && $key === $this->key)) {
             throw new S3Error('InvalidRequest', 'Invalid metadata directive or unchanged self-copy.', 400);
         }
+        $this->access->authorize('GetObject', $bucket);
         [$sourceRow, $stream] = $this->store->open($bucket, $key);
         try {
             [$type, $metadata] = $directive === 'REPLACE' ? $this->metadata() : [$sourceRow['type'], $sourceRow['metadata']];
