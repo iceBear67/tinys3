@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="320" viewBox="0 0 400 320" fill="none">
+  <defs>
+    <pattern id="dots" width="15" height="15" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#92b3a0" opacity=".36"/></pattern>
+    <g id="block" stroke="#cee7c3" stroke-width="1.35" stroke-linejoin="round">
+      <path d="m0-34 54 29-54 29-54-29Z" fill="#497965"/>
+      <path d="M-54-5 0 24v36l-54-30Z" fill="#315c4b"/><path d="M0 24 54-5v35L0 60Z" fill="#224738"/>
+      <path d="m-47 7 9 5m-9-1 9 5m62 3 17-9" stroke="#a7c8a5"/>
+    </g>
+  </defs>
+  <rect width="400" height="320" fill="url(#dots)"/>
+  <g stroke="#799e86" stroke-width="1" stroke-dasharray="4 6" opacity=".75"><path d="m30 197 169 94 174-97-170-95Z"/><path d="m201 56 1 214M62 206l136-76 133 74M26 161l175 97 169-93"/></g>
+  <use href="#block" transform="translate(199 181)"/><use href="#block" transform="translate(139 148)"/><use href="#block" transform="translate(259 148)"/><use href="#block" transform="translate(199 113)"/>
+  <g stroke="#def0be" stroke-width="1.45" stroke-linejoin="round"><path d="m199 40 54 29-54 30-54-30Z" fill="#c0dc9e"/><path d="m145 69 54 30v35l-54-29Z" fill="#719c75"/><path d="m199 99 54-30v36l-54 29Z" fill="#538064"/><path d="m173 54 54 29v10m-74-13 12 7m-12-2 12 7"/></g>
+  <g fill="#d5eab8"><circle cx="30" cy="197" r="2.4"/><circle cx="373" cy="194" r="2.4"/><circle cx="199" cy="291" r="2.4"/></g>
+</svg>
