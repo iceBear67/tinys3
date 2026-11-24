@@ -6,14 +6,14 @@ TinyS3 是一个适合 cPanel、DirectAdmin 虚拟主机的私有对象存储服
 
 1. 为对象存储准备一个启用 HTTPS 的独立域名，例如 `s3.example.com`。选择 64 位 PHP 8.5，启用 `pdo_mysql`、`fileinfo`、`SimpleXML`、`XMLReader` 和 `session`。使用支持 `.htaccess` 和 URL 重写的 Apache 2.4 或兼容服务器。纯 Nginx 主机需要能配置网站转发规则。
 2. 在主机面板创建数据库和专用数据库用户。使用 MySQL 8 或 MariaDB 10.6 及以上版本，存储引擎使用 InnoDB。在 phpMyAdmin 中选中数据库并导入 `schema.sql`。安装后应用账号需要 `SELECT`、`INSERT`、`UPDATE`、`DELETE` 权限。
-3. 将项目上传到账号的私有目录，例如 `/home/ACCOUNT/tinys3`。将这个域名的网站根目录设置为 `/home/ACCOUNT/tinys3/public`。确认文件管理器显示隐藏文件，上传时包含 `public/.htaccess`。
-4. 在项目目录中，将 `config.example.php` 复制为 `config.php`。填写数据库连接字符串 `dsn`、用户名 `db_user` 和密码 `db_password`。数据库名和用户名通常包含主机账号前缀。创建 `data` 目录，确保运行 PHP 的账号可以写入。在 PHP 以主机账号身份运行时，`data` 可设为 `0700`，`config.php` 可设为 `0600`。
+3. 将项目上传到账号的目录，例如 `/home/ACCOUNT/tinys3`，并将这个目录直接设置为网站根目录。确认文件管理器显示隐藏文件，上传时包含根目录中的 `.htaccess`。
+4. 在项目目录中，将 `config.example.php` 复制为 `config.php`。填写数据库连接字符串 `dsn`、用户名 `db_user` 和密码 `db_password`。数据库名和用户名通常包含主机账号前缀。按照配置中的路径在网站根目录之外创建 `data` 目录，确保运行 PHP 的账号可以写入。在 PHP 以主机账号身份运行时，`data` 可设为 `0700`，`config.php` 可设为 `0600`。
 5. 在有 PHP 的电脑或主机终端执行 `php bin/credentials.php`。将输出的三项配置复制到 `config.php`，将第一行的管理密码保存到密码管理器。S3 客户端使用 `access_key` 和 `secret_key`。管理面板使用独立密码，配置文件只保存它的散列值。默认区域是 `us-east-1`。
 6. 打开 `https://s3.example.com/admin`，使用管理密码登录。选择 **Create bucket** 创建存储桶，进入桶后选择 **Upload object** 上传文件。对象名称可以包含路径，例如 `photos/2026/snow.jpg`，面板会按目录显示。相同名称的上传会替换已有文件。
 
-**网站根目录固定时**，将 `public/` 中的内容放入该域名的网站根目录，将其余文件和 `data/` 保存在网站目录之外。把网站入口 `index.php` 最后一行改为 `require '/home/ACCOUNT/tinys3/bootstrap.php';`，路径使用你的实际账号目录。DirectAdmin 中也可以使用这种布局。若主机启用了 `open_basedir`，需要允许 PHP 访问项目和数据目录。
+**网站根目录固定时**，将整个项目内容放入该域名的网站根目录，并确保 `.htaccess` 一并上传。对象存储目录仍需位于网站根目录之外。若主机启用了 `open_basedir`，需要允许 PHP 访问项目和数据目录。
 
-网站根目录中只需放置 `index.php`、转发配置 `.htaccess` 和 `assets/` 中的静态资源。`config.php`、数据库结构和对象文件应始终位于网站根目录以外。服务会在启动时检查配置与数据目录的位置。
+网站根目录包含 `index.php`、重写配置 `.htaccess`、`assets/` 中的静态资源以及应用文件。`.htaccess` 会将静态资源之外的请求转发到 `index.php`，因此配置文件、数据库结构和对象文件不会作为静态文件直接返回。服务会在启动时检查对象存储目录位于网站根目录之外。
 
 ## 管理 S3 凭据和桶权限
 
@@ -104,5 +104,5 @@ s3.download_file("my-bucket", "backups/archive.zip", "restored.zip")
 配置好数据库、凭据和数据目录，在项目根目录执行以下命令，然后打开 `http://127.0.0.1:8080/admin`。PHP 内置服务器仅供本机开发，生产环境由虚拟主机的 Web 服务器处理请求。
 
 ```sh
-php -S 127.0.0.1:8080 -t public public/index.php
+php -S 127.0.0.1:8080 -t . index.php
 ```
