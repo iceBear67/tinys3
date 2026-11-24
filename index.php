@@ -1,6 +1,14 @@
 <?php
 declare(strict_types=1);
 
+if (PHP_SAPI === 'cli-server') {
+    $path = explode('?', $_SERVER['REQUEST_URI'], 2)[0];
+    if (preg_match('~^/assets/[a-zA-Z0-9_-]+\.(?:css|js|woff2|svg|png|ico)$~D', $path) && is_file(__DIR__ . $path)
+        && empty($_SERVER['HTTP_AUTHORIZATION']) && !isset($_GET['X-Amz-Algorithm'])) {
+        return false;
+    }
+}
+
 final class S3Error extends RuntimeException
 {
     public function __construct(public readonly string $s3code, string $message, public readonly int $status)
@@ -43,8 +51,8 @@ try {
     }
     $storage = realpath($config['storage_dir']);
     $webRoot = realpath($_SERVER['DOCUMENT_ROOT']);
-    if (!$storage || !is_dir($storage) || !$webRoot || str_starts_with($storage . '/', $webRoot . '/') || str_starts_with(__DIR__ . '/', $webRoot . '/')) {
-        throw new RuntimeException('Configuration and object storage require existing directories outside the document root.');
+    if (!$storage || !is_dir($storage) || !$webRoot || str_starts_with($storage . '/', $webRoot . '/')) {
+        throw new RuntimeException('Object storage requires an existing directory outside the document root.');
     }
     $db = new PDO($config['dsn'], $config['db_user'], $config['db_password'], [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
